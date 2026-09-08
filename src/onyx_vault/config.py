@@ -13,13 +13,14 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv, set_key
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
+
+from onyx_vault.auth import get_machine_id
 
 CONFIG_DIR = Path.home() / ".onyx-vault"
 ENV_PATH = CONFIG_DIR / ".env"
@@ -93,25 +94,23 @@ def _prompt_for_missing(missing: list[str]) -> None:
     console.print(f"[dim]Saved to {ENV_PATH}. Try not to lose it.[/]\n")
 
 
-def _get_machine_id() -> str:
-    return str(uuid.getnode())
-
-
 class LicenseCheckResult:
     VALID = "valid"
     INVALID = "invalid"
     NETWORK_ERROR = "network_error"
+    DEVICE_MISMATCH = "device_mismatch"
 
 
 def _check_access_code(code: str, endpoint: str) -> str:
-    """Verify an access code + machine id against the Cloudflare Worker API.
+    """Verify a license key + machine id against the Cloudflare Worker API.
 
     Returns a LicenseCheckResult constant. Network/timeout/malformed-response
     failures are reported distinctly from an explicit invalid/expired verdict
-    from the worker, so callers can show the right message instead of
-    conflating "server unreachable" with "bad code".
+    from the worker, and a 403 (key already bound to a different machine) is
+    reported distinctly again, so callers can show the right message instead
+    of conflating "server unreachable" with "bad key" with "wrong device".
     """
-    query = urllib.parse.urlencode({"code": code, "machine_id": _get_machine_id()})
+    query = urllib.parse.urlencode({"key": code, "machine_id": get_machine_id()})
     url = f"{endpoint}/verify?{query}"
     request = urllib.request.Request(
         url,
@@ -120,6 +119,10 @@ def _check_access_code(code: str, endpoint: str) -> str:
     try:
         with urllib.request.urlopen(request, timeout=LICENSE_TIMEOUT_SECONDS) as response:
             payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        if exc.code == 403:
+            return LicenseCheckResult.DEVICE_MISMATCH
+        return LicenseCheckResult.NETWORK_ERROR
     except (urllib.error.URLError, TimeoutError, ValueError, OSError):
         return LicenseCheckResult.NETWORK_ERROR
     return LicenseCheckResult.VALID if payload.get("valid") is True else LicenseCheckResult.INVALID
@@ -169,6 +172,13 @@ def ensure_license() -> None:
 
         if result == LicenseCheckResult.VALID:
             break
+
+        if result == LicenseCheckResult.DEVICE_MISMATCH:
+            console.print(
+                "[bold red][ONYX] Error: This license key is already in use on "
+                "another computer.[/]"
+            )
+            sys.exit(1)
 
         attempts += 1
         console.print("[bold red][ONYX][/] Invalid license key. Please try again.")
