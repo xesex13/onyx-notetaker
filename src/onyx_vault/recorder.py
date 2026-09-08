@@ -1,6 +1,6 @@
 """Non-blocking microphone capture.
 
-Runs PyAudio on a dedicated background thread so it never blocks the asyncio
+Runs sounddevice on a dedicated background thread so it never blocks the asyncio
 event loop, slicing the live mic feed into 5-minute (300-second) WAV chunks and
 handing each finished chunk's file path to the async processing queue.
 """
@@ -14,12 +14,13 @@ import wave
 from pathlib import Path
 from typing import Optional
 
-import pyaudio
+import sounddevice as sd
 
 from onyx_vault.config import CHUNK_SECONDS, TEMP_DIR
 
 CHUNK_FRAMES = 1024
-AUDIO_FORMAT = pyaudio.paInt16
+AUDIO_DTYPE = "int16"
+SAMPLE_WIDTH = 2  # bytes per sample for int16
 CHANNELS = 1
 SAMPLE_RATE = 16000
 
@@ -32,7 +33,7 @@ class AudioRecorder:
         self._queue = queue
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
-        self._pyaudio: Optional[pyaudio.PyAudio] = None
+        self._stream: Optional[sd.RawInputStream] = None
         self.is_recording = False
 
     def start(self) -> None:
@@ -45,14 +46,13 @@ class AudioRecorder:
             self._thread.join(timeout=5)
 
     def _run(self) -> None:
-        self._pyaudio = pyaudio.PyAudio()
-        stream = self._pyaudio.open(
-            format=AUDIO_FORMAT,
+        self._stream = sd.RawInputStream(
+            samplerate=SAMPLE_RATE,
             channels=CHANNELS,
-            rate=SAMPLE_RATE,
-            input=True,
-            frames_per_buffer=CHUNK_FRAMES,
+            dtype=AUDIO_DTYPE,
+            blocksize=CHUNK_FRAMES,
         )
+        self._stream.start()
         self.is_recording = True
         try:
             frames_per_chunk = int(SAMPLE_RATE / CHUNK_FRAMES * CHUNK_SECONDS)
@@ -61,8 +61,8 @@ class AudioRecorder:
                 for _ in range(frames_per_chunk):
                     if self._stop_event.is_set():
                         break
-                    data = stream.read(CHUNK_FRAMES, exception_on_overflow=False)
-                    frames.append(data)
+                    data, _overflowed = self._stream.read(CHUNK_FRAMES)
+                    frames.append(bytes(data))
 
                 if not frames:
                     continue
@@ -72,13 +72,12 @@ class AudioRecorder:
                 asyncio.run_coroutine_threadsafe(self._queue.put(filepath), self._loop)
         finally:
             self.is_recording = False
-            stream.stop_stream()
-            stream.close()
-            self._pyaudio.terminate()
+            self._stream.stop()
+            self._stream.close()
 
     def _write_wav(self, filepath: Path, frames: list[bytes]) -> None:
         with wave.open(str(filepath), "wb") as wf:
             wf.setnchannels(CHANNELS)
-            wf.setsampwidth(self._pyaudio.get_sample_size(AUDIO_FORMAT))
+            wf.setsampwidth(SAMPLE_WIDTH)
             wf.setframerate(SAMPLE_RATE)
             wf.writeframes(b"".join(frames))
