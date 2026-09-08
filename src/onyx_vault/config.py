@@ -29,8 +29,9 @@ CHUNK_SECONDS = 300  # 5-minute recording interval
 
 REQUIRED_KEYS = ["GROQ_API_KEY", "OBSIDIAN_VAULT_PATH"]
 
-LICENSE_CODE_KEY = "ONYX_ACCESS_CODE"
+LICENSE_CODE_KEY = "ONYX_LICENSE_KEY"
 LICENSE_ENDPOINT_KEY = "ONYX_LICENSE_ENDPOINT"
+DEFAULT_LICENSE_ENDPOINT = "https://onyx-license-worker.priyor13.workers.dev"
 LICENSE_TIMEOUT_SECONDS = 10
 LICENSE_USER_AGENT = "ONYX-CLI/1.0"
 
@@ -111,7 +112,7 @@ def _check_access_code(code: str, endpoint: str) -> str:
     conflating "server unreachable" with "bad code".
     """
     query = urllib.parse.urlencode({"code": code, "machine_id": _get_machine_id()})
-    url = f"{endpoint}?{query}"
+    url = f"{endpoint}/verify?{query}"
     request = urllib.request.Request(
         url,
         headers={"User-Agent": LICENSE_USER_AGENT, "Accept": "application/json"},
@@ -128,26 +129,20 @@ MAX_LICENSE_ATTEMPTS = 3
 
 
 def ensure_license() -> None:
-    """Gate ONYX behind a Cloudflare-verified access code before any recording starts.
+    """Gate ONYX behind a Cloudflare-verified license key before any recording starts.
 
-    Reads ONYX_ACCESS_CODE from ~/.onyx-vault/.env; if missing or rejected,
+    Reads ONYX_LICENSE_KEY from ~/.onyx-vault/.env; if missing or rejected,
     prompts for it interactively in the terminal (up to MAX_LICENSE_ATTEMPTS
-    tries) instead of requiring a manual .env edit. The code is re-verified
-    against the license API on every launch so a revoked code stops working
-    even after being cached locally.
+    tries) instead of requiring a manual .env edit. ONYX_LICENSE_ENDPOINT falls
+    back to DEFAULT_LICENSE_ENDPOINT so a missing endpoint var never halts the
+    app. The key is re-verified against the license API on every launch so a
+    revoked key stops working even after being cached locally.
     """
     ensure_dirs()
     if ENV_PATH.exists():
         load_dotenv(dotenv_path=ENV_PATH)
 
-    endpoint = os.environ.get(LICENSE_ENDPOINT_KEY, "").strip().rstrip("/")
-    if not endpoint:
-        console.print(
-            f"[bold red]{LICENSE_ENDPOINT_KEY} is not set.[/] Add it to {ENV_PATH} "
-            "(the base URL of your Cloudflare Worker license endpoint) before ONYX "
-            "can verify anything."
-        )
-        sys.exit(1)
+    endpoint = os.environ.get(LICENSE_ENDPOINT_KEY, "").strip().rstrip("/") or DEFAULT_LICENSE_ENDPOINT
 
     code = os.environ.get(LICENSE_CODE_KEY)
     if not code:
