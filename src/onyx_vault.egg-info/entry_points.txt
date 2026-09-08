@@ -1,0 +1,2 @@
+[console_scripts]
+onyx-vault = onyx_vault.main:app

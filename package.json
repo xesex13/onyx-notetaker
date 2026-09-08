@@ -1,0 +1,44 @@
+{
+  "name": "onyx-notetaker",
+  "version": "1.0.0",
+  "description": "ONYX: The Cobalt Scarab — a condescending, Groq-powered AI note-taker that live-transcribes lectures into your Obsidian vault.",
+  "bin": {
+    "onyx-cli": "./bin/cli.js",
+    "onyx": "./bin/cli.js"
+  },
+  "preferGlobal": true,
+  "files": [
+    "bin",
+    "src/onyx_vault",
+    "pyproject.toml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "scripts": {
+    "start": "node bin/cli.js"
+  },
+  "keywords": [
+    "obsidian",
+    "groq",
+    "whisper",
+    "llama",
+    "notes",
+    "cli",
+    "ai",
+    "transcription",
+    "lecture-notes"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/onyx-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/onyx-cli/issues"
+  },
+  "homepage": "https://github.com/yourusername/onyx-cli#readme"
+}

@@ -1,0 +1,179 @@
+# 🪲 ONYX: The Cobalt Scarab
+
+**O**bsidian **N**eural **Y**ield e**X**tractor
+
+> *"Oh look, another human who thinks they can take notes unsupervised. Adorable. Let's begin."*
+
+ONYX listens to your live lectures, transcribes them with **Groq Whisper**, structures them with **Groq Llama 3.3**, and appends condescending-but-genuinely-useful Markdown notes — complete with valid `[[Backlinks]]` — directly into your Obsidian vault in real time. It is exclusively powered by Groq. It will not be nice to you.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-cobalt.svg?color=00F0FF)](LICENSE)
+[![npm](https://img.shields.io/badge/npx-onyx--vault-00F0FF?logo=npm)](https://www.npmjs.com/package/onyx-vault)
+[![Python](https://img.shields.io/badge/python-3.9%2B-00F0FF?logo=python&logoColor=white)](https://www.python.org/)
+[![Powered by Groq](https://img.shields.io/badge/powered%20by-Groq-00F0FF)](https://groq.com/)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-00F0FF)](#-quickstart)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-00F0FF.svg)](CONTRIBUTING.md)
+
+---
+
+## 🧠 Pipeline
+
+```mermaid
+flowchart LR
+    A[🎙️ Mic] --> B[PyAudio\n30s chunks]
+    B --> C[Groq Whisper\nwhisper-large-v3-turbo]
+    C --> D[Groq Llama 3.3\n+ Vault Index]
+    D --> E[📓 Obsidian Note\nvalid Backlinks]
+
+    style A fill:#0a0a0a,stroke:#00F0FF,color:#00F0FF
+    style B fill:#0a0a0a,stroke:#00F0FF,color:#00F0FF
+    style C fill:#0a0a0a,stroke:#00F0FF,color:#00F0FF
+    style D fill:#0a0a0a,stroke:#00F0FF,color:#00F0FF
+    style E fill:#0a0a0a,stroke:#00F0FF,color:#00F0FF
+```
+
+Every 30 seconds of audio becomes a Whisper transcript, which Llama 3.3 restructures using a fuzzy-matched index of your **existing** vault notes — so it only ever links to `[[Notes]]` that are actually real. On exit, a full Map-Reduce pass produces an executive summary and an Anki-ready flashcard deck.
+
+---
+
+## ✨ Features
+
+- **Groq-exclusive.** Whisper (`whisper-large-v3-turbo`) for transcription, Llama 3.3 (`llama-3.3-70b-versatile`) for structuring. No OpenAI, no Anthropic, zero extra API keys.
+- **Live, async, non-blocking.** A producer-consumer pipeline records on a background thread while an asyncio worker queue transcribes and writes notes concurrently, with exponential backoff on rate limits.
+- **Vault-aware backlinking.** Scans your Obsidian vault on boot and uses `rapidfuzz` to guarantee every `[[Backlink]]` ONYX writes points to a note that actually exists.
+- **A genuinely unpleasant AI persona.** Every note block gets a 🍼 Toddler Breakdown, a 🪲 Sarcastic Roast, and a rigorous 📝 Vault Core. Prefer to be treated like an adult? `--persona academic` swaps in a neutral tone.
+- **Map-Reduce shutdown.** `Ctrl+C` drains the queue and produces a `📌 Executive Summary` plus `🎴 Anki Cards` (one-click `Front :: Back` import format).
+- **Cross-platform `npx` launcher.** One Node.js wrapper detects your OS, provisions a local Python `.venv`, installs dependencies once, and forwards straight into the Python app — on both macOS and Windows.
+
+---
+
+## 🚀 Quickstart
+
+You need **Python 3.9+** installed and on your `PATH`. Node.js (for `npx`) is required to launch the wrapper — no global Python install step needed beyond that.
+
+### macOS
+
+```bash
+npx onyx-vault
+```
+
+First run creates a `.venv`, installs dependencies (including PyAudio — if that fails, `brew install portaudio` first), and drops you into the boot screen.
+
+### Windows (PowerShell or cmd)
+
+```powershell
+npx onyx-vault
+```
+
+The wrapper resolves `.venv\Scripts\python.exe` automatically and installs everything for you. If PyAudio fails to build, install the prebuilt wheel matching your Python version, or use `pipwin install pyaudio`.
+
+### First boot
+
+On first run, ONYX will interactively ask for:
+
+1. `GROQ_API_KEY` — get one at [console.groq.com](https://console.groq.com/keys)
+2. `OBSIDIAN_VAULT_PATH` — the absolute path to your Obsidian vault folder
+
+Both are saved to `~/.onyx-vault/.env` so you're never asked again.
+
+### Usage
+
+```bash
+onyx                       # start a session with the default sarcastic persona
+onyx --persona academic    # start a session with a neutral, professional tone
+onyx version                # print the installed version
+```
+
+Press **Ctrl+C** at any time to stop recording — ONYX will drain any in-flight audio, run a final Map-Reduce pass, and append an Executive Summary + Anki deck to your note before exiting.
+
+---
+
+## 🏗️ Architecture
+
+```
+onyx-vault/
+├── bin/cli.js                 # cross-platform npx launcher (Node.js)
+├── pyproject.toml             # Python package definition
+└── src/onyx_vault/
+    ├── main.py                # Typer CLI, boot wizard, live dashboard orchestration
+    ├── config.py               # env/credential bootstrap (~/.onyx-vault/.env)
+    ├── vault.py                # vault scanning + rapidfuzz backlink validation
+    ├── recorder.py              # threaded PyAudio producer -> asyncio.Queue
+    ├── processor.py             # async consumer: Whisper -> Llama 3.3 -> note append
+    ├── shutdown.py               # SIGINT Map-Reduce: summary + Anki cards
+    ├── persona.py                 # ONYX / academic system prompts
+    └── ui.py                       # Rich ASCII boot screen + live dashboard
+```
+
+---
+
+## 📓 Sample Note — ONYX Cobalt Scarab
+
+```markdown
+---
+subject: LAW101
+professor: Dr. Aris
+lecture: 04
+topic: Tort Law & Negligence
+generated_by: ONYX (The Cobalt Scarab)
+tags: [onyx, lecture-notes]
+---
+
+# LAW101 — Lecture 04: Tort Law & Negligence
+
+*Professor: Dr. Aris*
+
+---
+
+#### ⏱ 10:42:07
+
+### 🍼 Toddler Breakdown
+Okay buddy, here's the deal: if you promise to be careful with your toys and then you're NOT careful and you break your friend's toy — that's "negligence." You had a job (be careful), you didn't do the job, and now something's broken. Congrats, you're basically a defendant now.
+
+### 🪲 Sarcastic Roast
+Dr. Aris just spent four minutes explaining the "duty of care" and I watched you write down "dooty of care." Truly inspiring. At this rate you'll pass the bar sometime around your retirement party.
+
+### 📝 Vault Core
+Negligence requires four elements: **duty**, **breach**, **causation**, and **damages**. The duty of care is established via the reasonable person standard (see [[Reasonable Person Standard]]). Breach occurs when conduct falls below that standard. Causation splits into factual ("but-for") and proximate cause. See also [[Elements of a Tort]] for the broader framework this fits into.
+
+---
+
+## 📌 Executive Summary & Key Takeaways
+
+Despite your best efforts to space out for forty-five straight minutes, here's what actually mattered: negligence is a four-part test — duty, breach, causation, damages — and Dr. Aris cares deeply that you can recite it without sounding like a toddler who just discovered the word "liability."
+
+- Duty of care = the reasonable person standard, not "whatever felt right at the time"
+- Breach = falling below that standard
+- Causation = factual ("but-for") + proximate cause, both required
+- Damages = actual, provable harm — no harm, no tort
+
+## 🎴 Auto-Generated Anki Cards
+
+What are the four elements of negligence? :: Duty, breach, causation, and damages
+What standard defines "duty of care"? :: The reasonable person standard
+What is "but-for" causation? :: Factual causation — the harm would not have occurred but for the defendant's conduct
+What is proximate cause? :: A legal limit on liability requiring the harm to be a reasonably foreseeable result of the breach
+Without provable damages, can a negligence claim succeed? :: No — actual, provable harm is required
+```
+
+---
+
+## 🔧 Configuration Reference
+
+| Variable | Description | Where it's stored |
+|---|---|---|
+| `GROQ_API_KEY` | Your Groq API key | `~/.onyx-vault/.env` |
+| `OBSIDIAN_VAULT_PATH` | Absolute path to your Obsidian vault | `~/.onyx-vault/.env` |
+| `ONYX_LICENSE_ENDPOINT` | Base URL of your Cloudflare Worker license-check API | `~/.onyx-vault/.env` (you must set this yourself) |
+| `ONYX_ACCESS_CODE` | Your license access code, verified against `ONYX_LICENSE_ENDPOINT` on every launch | `~/.onyx-vault/.env` (saved after first successful verification) |
+
+Temporary audio chunks live in `~/.onyx-vault/temp/` and are deleted immediately after successful transcription — nothing survives a crash except what already made it into Groq.
+
+---
+
+## 🤝 Contributing
+
+Issues and PRs welcome. This is an open-source project — MIT licensed, Groq-exclusive by design, and happy to stay that way.
+
+## 📜 License
+
+[MIT](LICENSE)
