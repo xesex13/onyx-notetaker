@@ -96,8 +96,20 @@ def _get_machine_id() -> str:
     return str(uuid.getnode())
 
 
-def _check_access_code(code: str, endpoint: str) -> bool:
-    """Verify an access code + machine id against the Cloudflare Worker API."""
+class LicenseCheckResult:
+    VALID = "valid"
+    INVALID = "invalid"
+    NETWORK_ERROR = "network_error"
+
+
+def _check_access_code(code: str, endpoint: str) -> str:
+    """Verify an access code + machine id against the Cloudflare Worker API.
+
+    Returns a LicenseCheckResult constant. Network/timeout/malformed-response
+    failures are reported distinctly from an explicit invalid/expired verdict
+    from the worker, so callers can show the right message instead of
+    conflating "server unreachable" with "bad code".
+    """
     query = urllib.parse.urlencode({"code": code, "machine_id": _get_machine_id()})
     url = f"{endpoint}?{query}"
     request = urllib.request.Request(
@@ -108,16 +120,21 @@ def _check_access_code(code: str, endpoint: str) -> bool:
         with urllib.request.urlopen(request, timeout=LICENSE_TIMEOUT_SECONDS) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, ValueError, OSError):
-        return False
-    return payload.get("valid") is True
+        return LicenseCheckResult.NETWORK_ERROR
+    return LicenseCheckResult.VALID if payload.get("valid") is True else LicenseCheckResult.INVALID
+
+
+MAX_LICENSE_ATTEMPTS = 3
 
 
 def ensure_license() -> None:
     """Gate ONYX behind a Cloudflare-verified access code before any recording starts.
 
-    Reads ONYX_ACCESS_CODE from ~/.onyx-vault/.env; if missing, prompts for it
-    interactively. Either way, the code is re-verified against the license API on
-    every launch so a revoked code stops working even after being cached locally.
+    Reads ONYX_ACCESS_CODE from ~/.onyx-vault/.env; if missing or rejected,
+    prompts for it interactively in the terminal (up to MAX_LICENSE_ATTEMPTS
+    tries) instead of requiring a manual .env edit. The code is re-verified
+    against the license API on every launch so a revoked code stops working
+    even after being cached locally.
     """
     ensure_dirs()
     if ENV_PATH.exists():
@@ -133,29 +150,50 @@ def ensure_license() -> None:
         sys.exit(1)
 
     code = os.environ.get(LICENSE_CODE_KEY)
-    first_time = not code
     if not code:
-        code = Prompt.ask("[bright_cyan]Enter your ONYX Access Code[/]")
+        console.print("[bold yellow][ONYX][/] License key not found.")
 
-    if not _check_access_code(code, endpoint):
-        console.print(
-            Panel(
-                "[bold red]✗ Access denied.[/] That code did not verify against the "
-                "license server. Fix your code — or your life choices — and try again.",
-                title="[bold red]ONYX LICENSE CHECK FAILED[/]",
-                border_style="red",
+    attempts = 0
+    while True:
+        if not code:
+            code = Prompt.ask("[bright_cyan][ONYX] Please enter your license key[/]", password=True)
+
+        result = _check_access_code(code, endpoint)
+
+        if result == LicenseCheckResult.NETWORK_ERROR:
+            console.print(
+                Panel(
+                    "[bold red]✗ Could not reach the license server.[/] The Cloudflare "
+                    f"Worker at {endpoint} timed out or returned an unreadable response. "
+                    "Check your network connection and try again.",
+                    title="[bold red]ONYX LICENSE CHECK FAILED[/]",
+                    border_style="red",
+                )
             )
-        )
-        sys.exit(1)
+            sys.exit(1)
 
-    if first_time:
-        if not ENV_PATH.exists():
-            ENV_PATH.touch()
-        os.environ[LICENSE_CODE_KEY] = code
-        set_key(str(ENV_PATH), LICENSE_CODE_KEY, code)
-        console.print(f"[dim]License verified. Saved to {ENV_PATH} for future launches.[/]")
-    else:
-        console.print("[dim]License verified.[/]")
+        if result == LicenseCheckResult.VALID:
+            break
+
+        attempts += 1
+        console.print("[bold red][ONYX][/] Invalid license key. Please try again.")
+        code = None
+        if attempts >= MAX_LICENSE_ATTEMPTS:
+            console.print(
+                Panel(
+                    "[bold red]Error: Invalid or inactive license key.[/] Please check "
+                    "your credentials and try again.",
+                    title="[bold red]ONYX LICENSE CHECK FAILED[/]",
+                    border_style="red",
+                )
+            )
+            sys.exit(1)
+
+    if not ENV_PATH.exists():
+        ENV_PATH.touch()
+    os.environ[LICENSE_CODE_KEY] = code
+    set_key(str(ENV_PATH), LICENSE_CODE_KEY, code)
+    console.print(f"[bold green][ONYX] License verified successfully![/] Saved to {ENV_PATH}.")
 
 
 def print_disclaimer_banner() -> None:
