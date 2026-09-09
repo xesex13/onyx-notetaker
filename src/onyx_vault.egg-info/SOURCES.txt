@@ -3,6 +3,7 @@ README.md
 pyproject.toml
 src/onyx_vault/__init__.py
 src/onyx_vault/__main__.py
+src/onyx_vault/auth.py
 src/onyx_vault/config.py
 src/onyx_vault/main.py
 src/onyx_vault/persona.py

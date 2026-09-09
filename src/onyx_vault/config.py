@@ -22,7 +22,7 @@ from rich.prompt import Prompt
 
 from onyx_vault.auth import get_machine_id
 
-CONFIG_DIR = Path.home() / ".onyx-vault"
+CONFIG_DIR = Path.home() / ".onyx-data"
 ENV_PATH = CONFIG_DIR / ".env"
 TEMP_DIR = CONFIG_DIR / "temp"
 
@@ -48,8 +48,7 @@ def load_config() -> dict:
     """Load required config, prompting interactively for anything missing."""
     ensure_dirs()
 
-    if ENV_PATH.exists():
-        load_dotenv(dotenv_path=ENV_PATH)
+    load_dotenv(dotenv_path=ENV_PATH, override=True)
 
     missing = [key for key in REQUIRED_KEYS if not os.environ.get(key)]
     if missing:
@@ -67,6 +66,35 @@ def load_config() -> dict:
         "GROQ_API_KEY": os.environ["GROQ_API_KEY"],
         "OBSIDIAN_VAULT_PATH": str(vault_path),
     }
+
+
+def ensure_groq_key() -> str:
+    """Guarantee GROQ_API_KEY is set, prompting in the CLI instead of failing silently.
+
+    Called right before audio capture starts, on top of the load_config() check,
+    so a key that was blanked out or revoked mid-session still gets caught.
+    """
+    ensure_dirs()
+    load_dotenv(dotenv_path=ENV_PATH, override=True)
+    value = os.environ.get("GROQ_API_KEY", "").strip()
+    if not value:
+        console.print("[bold yellow][ONYX][/] GROQ_API_KEY missing.")
+        return update_groq_key()
+    return value
+
+
+def update_groq_key() -> str:
+    """Interactively prompt for a new Groq API key and persist it immediately."""
+    ensure_dirs()
+    if not ENV_PATH.exists():
+        ENV_PATH.touch()
+
+    value = Prompt.ask("[bright_cyan][ONYX] Enter new Groq API Key[/]", password=True)
+    os.environ["GROQ_API_KEY"] = value
+    set_key(str(ENV_PATH), "GROQ_API_KEY", value)
+    load_dotenv(dotenv_path=ENV_PATH, override=True)
+    console.print(f"[bold green][ONYX][/] Groq API key updated. Saved to {ENV_PATH}.")
+    return value
 
 
 def _prompt_for_missing(missing: list[str]) -> None:
@@ -130,6 +158,13 @@ def _check_access_code(code: str, endpoint: str) -> str:
 
 MAX_LICENSE_ATTEMPTS = 3
 
+# Machine ids exempt from license verification entirely (dev/owner devices).
+# Get a machine's id by running: python -c "from onyx_vault.auth import get_machine_id; print(get_machine_id())"
+WHITELISTED_MACHINE_IDS = {
+    "5313588979331e19",  # this device
+    # "BROTHERS_MACHINE_ID_HERE",
+}
+
 
 def ensure_license() -> None:
     """Gate ONYX behind a Cloudflare-verified license key before any recording starts.
@@ -142,8 +177,11 @@ def ensure_license() -> None:
     revoked key stops working even after being cached locally.
     """
     ensure_dirs()
-    if ENV_PATH.exists():
-        load_dotenv(dotenv_path=ENV_PATH)
+    load_dotenv(dotenv_path=ENV_PATH, override=True)
+
+    if get_machine_id() in WHITELISTED_MACHINE_IDS:
+        console.print("[bold green][ONYX][/] Whitelisted device detected. Skipping license check.")
+        return
 
     endpoint = os.environ.get(LICENSE_ENDPOINT_KEY, "").strip().rstrip("/") or DEFAULT_LICENSE_ENDPOINT
 

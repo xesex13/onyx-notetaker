@@ -10,7 +10,7 @@ Requires-Python: >=3.9
 Description-Content-Type: text/markdown
 License-File: LICENSE
 Requires-Dist: groq>=0.11.0
-Requires-Dist: pyaudio>=0.2.14
+Requires-Dist: sounddevice>=0.4.6
 Requires-Dist: rich>=13.7.0
 Requires-Dist: typer>=0.12.0
 Requires-Dist: rapidfuzz>=3.9.0
@@ -183,6 +183,8 @@ Without provable damages, can a negligence claim succeed? :: No — actual, prov
 |---|---|---|
 | `GROQ_API_KEY` | Your Groq API key | `~/.onyx-vault/.env` |
 | `OBSIDIAN_VAULT_PATH` | Absolute path to your Obsidian vault | `~/.onyx-vault/.env` |
+| `ONYX_LICENSE_ENDPOINT` | Base URL of your Cloudflare Worker license-check API | `~/.onyx-vault/.env` (you must set this yourself) |
+| `ONYX_ACCESS_CODE` | Your license access code, verified against `ONYX_LICENSE_ENDPOINT` on every launch | `~/.onyx-vault/.env` (saved after first successful verification) |
 
 Temporary audio chunks live in `~/.onyx-vault/temp/` and are deleted immediately after successful transcription — nothing survives a crash except what already made it into Groq.
 

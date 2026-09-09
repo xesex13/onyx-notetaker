@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import signal
 from pathlib import Path
 
@@ -13,7 +14,7 @@ from rich.live import Live
 from rich.prompt import Prompt
 
 from onyx_vault import __version__
-from onyx_vault.config import ensure_license, load_config, print_disclaimer_banner
+from onyx_vault.config import ensure_groq_key, ensure_license, load_config, print_disclaimer_banner, update_groq_key
 from onyx_vault.processor import NoteProcessor, ProcessorStats
 from onyx_vault.recorder import AudioRecorder
 from onyx_vault.shutdown import run_shutdown_pipeline
@@ -105,7 +106,8 @@ async def _run_session(persona: str) -> None:
     course_dir = _init_course_dir(vault_path, meta)
 
     vault_index = VaultIndex(str(vault_path))
-    client = AsyncGroq(api_key=cfg["GROQ_API_KEY"])
+    ensure_groq_key()
+    client = AsyncGroq(api_key=os.environ["GROQ_API_KEY"])
 
     loop = asyncio.get_event_loop()
     queue: asyncio.Queue = asyncio.Queue()
@@ -168,6 +170,15 @@ async def _run_session(persona: str) -> None:
 def version() -> None:
     """Print the ONYX version."""
     console.print(f"ONYX: The Cobalt Scarab — v{__version__}")
+
+
+def key() -> None:
+    """Update the stored Groq API key without touching anything else."""
+    update_groq_key()
+
+
+app.command(name="key")(key)
+app.command(name="config")(key)
 
 
 if __name__ == "__main__":
