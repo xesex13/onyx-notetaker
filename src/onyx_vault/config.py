@@ -162,6 +162,7 @@ MAX_LICENSE_ATTEMPTS = 3
 # Get a machine's id by running: python -c "from onyx_vault.auth import get_machine_id; print(get_machine_id())"
 WHITELISTED_MACHINE_IDS = {
     "5313588979331e19",  # this device
+    "f8956588c6d3d661",
     # "BROTHERS_MACHINE_ID_HERE",
 }
 
