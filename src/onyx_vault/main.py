@@ -14,7 +14,7 @@ from rich.live import Live
 from rich.prompt import Prompt
 
 from onyx_vault import __version__
-from onyx_vault.config import ensure_groq_key, ensure_license, load_config, print_disclaimer_banner, update_groq_key
+from onyx_vault.config import ensure_groq_key, load_config, print_disclaimer_banner, update_groq_key
 from onyx_vault.processor import NoteProcessor, ProcessorStats
 from onyx_vault.recorder import AudioRecorder
 from onyx_vault.shutdown import run_shutdown_pipeline
@@ -97,7 +97,6 @@ def start(
 
 async def _run_session(persona: str) -> None:
     print_boot_screen(console)
-    ensure_license()
     print_disclaimer_banner()
     cfg = load_config()
 
