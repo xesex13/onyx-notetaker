@@ -143,6 +143,11 @@ async def _run_session(persona: str) -> None:
 
     with Live(console=console, refresh_per_second=2, screen=False) as live:
         while not stop_requested.is_set():
+            if processor_task.done():
+                live.stop()
+                console.print("\n[bold red]Fatal Error: Processor task died unexpectedly. Shutting down.[/]")
+                break
+            
             panel = build_dashboard(
                 is_recording=recorder.is_recording,
                 queue_depth=queue.qsize(),

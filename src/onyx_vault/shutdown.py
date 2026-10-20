@@ -92,6 +92,7 @@ async def _write_master_summary(course_dir: Path, meta: dict, block: str) -> Pat
         f"# {meta['subject']} — Lecture {meta['lecture_num']}: {meta['topic']} — Master Summary\n\n"
     )
 
+    note_path.parent.mkdir(parents=True, exist_ok=True)
     async with aiofiles.open(note_path, "w", encoding="utf-8") as f:
         await f.write(frontmatter + block + "\n")
 

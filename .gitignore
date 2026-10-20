@@ -1,10 +1,18 @@
 .env
+.env.*
+!.env.example
 .venv/
 __pycache__/
 *.pyc
-~/.onyx-vault/temp/
+*.pyo
 .DS_Store
 node_modules/
 dist/
+build/
+*.egg-info/
+
+# Test & scratch scripts
+test_*.py
+scratch/
 
 ONYX/

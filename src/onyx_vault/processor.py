@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import aiofiles
-from groq import AsyncGroq, RateLimitError
+from groq import AsyncGroq, RateLimitError, InternalServerError, APIConnectionError
 from rapidfuzz import fuzz, process
 
 from onyx_vault.persona import get_system_prompt
@@ -49,12 +49,12 @@ class ProcessorStats:
 
 
 async def _with_backoff(coro_fn, *args, **kwargs):
-    """Retry a Groq call with exponential backoff, but only on 429s."""
+    """Retry a Groq call with exponential backoff on 429s and connection/server errors."""
     delay = INITIAL_BACKOFF_SECONDS
     for attempt in range(MAX_RETRIES):
         try:
             return await coro_fn(*args, **kwargs)
-        except RateLimitError:
+        except (RateLimitError, InternalServerError, APIConnectionError):
             if attempt == MAX_RETRIES - 1:
                 raise
             await asyncio.sleep(delay)
@@ -97,7 +97,11 @@ class NoteProcessor:
             try:
                 if filepath is None:
                     break
-                await self._process_chunk(filepath)
+                try:
+                    await self._process_chunk(filepath)
+                except Exception as e:
+                    # Log error but keep the worker alive for future chunks
+                    print(f"\n[ONYX Error] Chunk {filepath.name} failed: {type(e).__name__} - {e}")
             finally:
                 self.queue.task_done()
 
@@ -208,6 +212,7 @@ class NoteProcessor:
         main_block, flashcards_block = self._split_flashcards(block)
         flashcards_section = f"\n---\n\n{flashcards_block}"
 
+        note_path.parent.mkdir(parents=True, exist_ok=True)
         async with aiofiles.open(note_path, "w", encoding="utf-8") as f:
             await f.write(frontmatter + main_block + "\n" + brother_links + flashcards_section)
 
